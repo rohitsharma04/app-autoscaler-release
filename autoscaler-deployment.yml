@@ -1,0 +1,412 @@
+---
+
+director_uuid: ((merge))
+
+name: app-autoscaler-release
+
+## Release Details ###
+releases:
+  - name: app-autoscaler
+    version: latest
+  - name: postgres
+    url: https://bosh.io/d/github.com/cloudfoundry/postgres-release?v=17
+    version: '17'
+    sha1: b062e32a5409ccd4e4161337c48705c793a58412
+  - name: cf
+    version: latest
+
+## Stemcell details ##
+stemcells:
+  - alias: default
+    os: ubuntu-trusty
+    version: latest
+
+## Canary details ##
+update:
+  canaries: 1
+  canary_watch_time: 1000-300000
+  max_in_flight: 3
+  update_watch_time: 1000-300000
+
+## Instance Group details ##
+
+instance_groups:
+
+# Postgres Instance Group
+
+  - name: postgres
+    azs:
+      - z1
+    instances: "((postgres_instance_count))"
+    update:
+      serial: true
+    stemcell: default
+    vm_type: default
+    networks:
+      - name: default
+    jobs:
+      - name: consul_agent
+        release: cf
+        properties:
+          consul:
+            agent:
+              mode: client
+              domain: cf.internal
+              services:
+                postgres:
+                  check:
+                    tcp: 127.0.0.1:5432
+                    interval: 30s
+                    timeout: 10s
+              servers: &cf_consul_lan_servers
+                lan: (( cf_consul_lan_servers ))
+            ca_cert: (( config_from_cf.consul.ca_cert ))
+            agent_cert: (( config_from_cf.consul.agent_cert ))
+            agent_key: (( config_from_cf.consul.agent_key ))
+            server_cert: (( config_from_cf.consul.server_cert ))
+            server_key: (( config_from_cf.consul.server_key ))
+            encrypt_keys: (( config_from_cf.consul.encrypt_keys ))
+      - name: postgres
+        properties:
+          databases: (( default_db ))
+        release: postgres
+
+ # APIServer Instance Group
+  
+  - name: apiserver
+    azs:
+      - z1
+    instances: 1
+    networks:
+      - name: default
+    stemcell: default
+    vm_type: default
+    jobs:
+      - name: consul_agent
+        release: cf
+        properties:
+          consul:
+            agent:
+              mode: client
+              domain: cf.internal
+              services:
+                apiserver: {}
+              servers: 
+                lan: (( cf_consul_lan_servers ))
+            ca_cert: (( config_from_cf.consul.ca_cert ))
+            agent_cert: (( config_from_cf.consul.agent_cert ))
+            agent_key: (( config_from_cf.consul.agent_key ))
+            server_cert: (( config_from_cf.consul.server_cert ))
+            server_key: (( config_from_cf.consul.server_key ))
+            encrypt_keys: (( config_from_cf.consul.encrypt_keys ))
+      - name: apiserver
+        release: app-autoscaler
+        properties:
+          api_server:
+            db_config: &db_config
+              idle_timeout: 1000
+              max_connections: 10
+              min_connections: 0
+            port: 6100
+          policy_db: &database
+            databases:
+            - name: autoscaler
+              tag: default
+            db_scheme: postgres
+            port: 5432
+            roles:
+            - name: postgres
+              password: postgres
+              tag: default
+        
+
+# Scheduler Instance Group
+
+  - name: scheduler
+    azs:
+      - z1
+    instances: 1
+    networks:
+      - name: default
+    stemcell: default
+    vm_type: default
+    jobs:
+      - name: consul_agent
+        release: cf
+        properties:
+          consul:
+            agent:
+              mode: client
+              domain: cf.internal
+              servers:
+                lan: (( config_from_cf.consul.lan_servers ))
+            ca_cert: (( config_from_cf.consul.ca_cert ))
+            agent_cert: (( config_from_cf.consul.agent_cert ))
+            agent_key: (( config_from_cf.consul.agent_key ))
+            server_cert: (( config_from_cf.consul.server_cert ))
+            server_key: (( config_from_cf.consul.server_key ))
+            encrypt_keys: (( config_from_cf.consul.encrypt_keys ))
+      - name: scheduler
+        properties:
+          scheduler:
+            port: 6102
+            job_reschedule_interval_millisecond: 10000
+            job_reschedule_maxcount: 6
+            notification_reschedule_maxcount: 3
+            ca_cert: (( app_autoscaler_ca_cert ))
+            server_cert: (( scheduler_server_cert ))
+            server_key: (( scheduler_server_key ))
+            scaling_engine:
+              ca_cert: (( app_autoscaler_ca_cert ))
+              client_cert: (( scalingengine_client_cert ))
+              client_key: (( scalingengine_client_key ))
+          scheduler_db: *database
+          policy_db: *database
+        release: app-autoscaler
+
+# Service-Broker Instance Group
+
+  - name: servicebroker
+    azs:
+      - z1
+    instances: 1
+    networks:
+      - name: default
+    stemcell: default
+    vm_type: default
+    jobs:
+      - name: consul_agent
+        release: cf
+        properties:
+          consul:
+            agent:
+              mode: client
+              domain: cf.internal
+              services:
+                servicebroker: {}
+              servers: 
+                lan: (( config_from_cf.consul.lan_servers ))
+            ca_cert: (( config_from_cf.consul.ca_cert ))
+            agent_cert: (( config_from_cf.consul.agent_cert ))
+            agent_key: (( config_from_cf.consul.agent_key ))
+            server_cert: (( config_from_cf.consul.server_cert ))
+            server_key: (( config_from_cf.consul.server_key ))
+            encrypt_keys: (( config_from_cf.consul.encrypt_keys ))
+      - name: servicebroker
+        release: app-autoscaler
+        properties:
+          service_broker:
+            db_config: *db_config
+            port : 6101
+            ca_cert: (( app_autoscaler_ca_cert ))
+            server_cert: (( servicebroker_server_cert ))
+            server_key: ((servicebroker_server_key ))
+            username: username
+            password: password
+            http_request_timeout: 5000
+            catalog: 
+              services:
+              - id: autoscaler-guid
+                name: autoscaler
+                description: Automatically increase or decrease the number of application instances based on a policy you define.
+                bindable: true
+                plans:
+                - id: autoscaler-free-plan-id
+                  name: autoscaler-free-plan
+                  description: This is the free service plan for the Auto-Scaling service.
+            api_server:
+              ca_cert: (( app_autoscaler_ca_cert ))
+              client_cert: (( apiserver_client_cert ))
+              client_key: (( apiserver_client_key ))
+          binding_db: *database
+        
+
+# Pruner Instance Group
+
+  - name: pruner
+    azs:
+      - z1
+    instances: 1
+    networks:
+      - name: default
+    stemcell: default
+    vm_type: default
+    jobs:
+      - name: consul_agent
+        release: cf
+        properties:
+          consul:
+            agent:
+              mode: client
+              domain: cf.internal
+              servers: 
+                lan: (( config_from_cf.consul.lan_servers ))
+            ca_cert: (( config_from_cf.consul.ca_cert ))
+            agent_cert: (( config_from_cf.consul.agent_cert ))
+            agent_key: (( config_from_cf.consul.agent_key ))
+            server_cert: (( config_from_cf.consul.server_cert ))
+            server_key: (( config_from_cf.consul.server_key ))
+            encrypt_keys: (( config_from_cf.consul.encrypt_keys ))
+      - name: pruner
+        properties:
+          appmetrics_db: *database
+          instancemetrics_db: *database
+          scalingengine_db: *database
+          pruner:
+            logging:
+            level: debug 
+        release: app-autoscaler
+
+# Metric-collector Instance Group
+
+  - name: metricscollector
+    azs:
+      - z1
+    instances: 1
+    networks:
+      - name: default
+    stemcell: default
+    vm_type: default
+    jobs:
+      - name: consul_agent
+        release: cf
+        properties:
+          consul:
+            agent:
+              mode: client
+              domain: cf.internal
+              servers: 
+                lan: (( config_from_cf.consul.lan_servers ))
+            ca_cert: (( config_from_cf.consul.ca_cert ))
+            agent_cert: (( config_from_cf.consul.agent_cert ))
+            agent_key: (( config_from_cf.consul.agent_key ))
+            server_cert: (( config_from_cf.consul.server_cert ))
+            server_key: (( config_from_cf.consul.server_key ))
+            encrypt_keys: (( config_from_cf.consul.encrypt_keys ))
+      - name: metricscollector
+        properties:
+          instancemetrics_db: *database
+          policy_db: *database
+          cf: &cf_credentials
+            api: https://api.bosh-lite.com
+            grant_type: password
+            username: admin
+            password: admin
+            client_id: admin
+            secret: admin-secret
+          metricscollector:
+            logging:
+              level: debug
+            server:
+              port: 6103
+            ca_cert: (( app_autoscaler_ca_cert ))
+            server_cert: (( metricscollector_server_cert ))
+            server_key: (( metricscollector_server_key ))
+        release: app-autoscaler
+
+# Event-Generator Instance Group
+
+  - name: eventgenerator
+    azs:
+      - z1
+    instances: 1
+    networks:
+      - name: default
+    stemcell: default
+    vm_type: default
+    jobs:
+      - name: consul_agent
+        release: cf
+        properties:
+          consul:
+            agent:
+              mode: client
+              domain: cf.internal
+              servers:
+                lan: (( config_from_cf.consul.lan_servers ))
+            ca_cert: (( config_from_cf.consul.ca_cert ))
+            agent_cert: (( config_from_cf.consul.agent_cert ))
+            agent_key: (( config_from_cf.consul.agent_key ))
+            server_cert: (( config_from_cf.consul.server_cert ))
+            server_key: (( config_from_cf.consul.server_key ))
+            encrypt_keys: (( config_from_cf.consul.encrypt_keys ))
+      - name: eventgenerator
+        properties:
+          appmetrics_db: *database
+          policy_db: *database
+          eventgenerator:
+            logging:
+              level: debug
+            scaling_engine:
+              ca_cert: (( app_autoscaler_ca_cert ))
+              client_cert: (( scalingengine_client_cert ))
+              client_key: (( scalingengine_client_key ))
+            metricscollector:
+              ca_cert: (( app_autoscaler_ca_cert ))
+              client_cert: (( metricscollector_client_cert ))
+              client_key: (( metricscollector_client_key ))
+        release: app-autoscaler
+
+# Scaling-Engine Instance Group
+
+  - name: scalingengine
+    azs:
+      - z1
+    instances: 1
+    networks:
+      - name: default
+    stemcell: default
+    vm_type: default
+    jobs:
+      - name: consul_agent
+        release: cf
+        properties:
+          consul:
+            agent:
+              mode: client
+              domain: cf.internal
+              servers:
+                lan: (( config_from_cf.consul.lan_servers ))
+            ca_cert: (( config_from_cf.consul.ca_cert ))
+            agent_cert: (( config_from_cf.consul.agent_cert ))
+            agent_key: (( config_from_cf.consul.agent_key ))
+            server_cert: (( config_from_cf.consul.server_cert ))
+            server_key: (( config_from_cf.consul.server_key ))
+            encrypt_keys: (( config_from_cf.consul.encrypt_keys ))
+      - name: scalingengine
+        properties:
+          scalingengine_db: *database
+          scheduler_db: *database
+          policy_db: *database
+          cf: *cf_credentials
+          scalingengine:
+            logging:
+              level: debug
+            server:
+              port: 6104
+            ca_cert: (( app_autoscaler_ca_cert ))
+            server_cert: (( scalingengine_server_cert ))
+            server_key: (( scalingengine_server_key ))
+            consul:
+              cluster: http://127.0.0.1:8500
+        release: app-autoscaler
+
+cf_properties: (( merge ))
+api_server_properties: (( merge ))
+scheduler_properties: (( merge ))
+service_broker_properties: (( merge ))
+config_from_cf: (( merge ))
+pruner_properties: ((merge))
+metricscollector_properties: (( merge ))
+eventgenerator_properties: (( merge ))
+scalingengine_properties: (( merge ))
+default_db: (( merge ))
+instance_count_overrides: (( merge || nil ))
+database: (( merge || default_db ))
+policydb: (( merge || database ))
+schedulerdb: (( merge || database ))
+scalingenginedb: (( merge || database ))
+appmetricsdb: (( merge || database ))
+instancemetricsdb: (( merge || database ))
+bindingdb: (( merge || database ))
+
