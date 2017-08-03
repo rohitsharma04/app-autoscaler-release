@@ -1,8 +1,6 @@
 ---
 
-director_uuid: ((merge))
-
-name: app-autoscaler-release
+name: app-autoscaler
 
 ## Release Details ###
 releases:
@@ -29,11 +27,9 @@ update:
   update_watch_time: 1000-300000
 
 ## Instance Group details ##
-
 instance_groups:
 
-# Postgres Instance Group
-
+  # Postgres Instance Group
   - name: postgres
     azs:
       - z1
@@ -58,21 +54,20 @@ instance_groups:
                     tcp: 127.0.0.1:5432
                     interval: 30s
                     timeout: 10s
-              servers: &cf_consul_lan_servers
+              servers: &consul_lan_servers
                 lan: (( cf_consul_lan_servers ))
-            ca_cert: (( config_from_cf.consul.ca_cert ))
-            agent_cert: (( config_from_cf.consul.agent_cert ))
-            agent_key: (( config_from_cf.consul.agent_key ))
-            server_cert: (( config_from_cf.consul.server_cert ))
-            server_key: (( config_from_cf.consul.server_key ))
-            encrypt_keys: (( config_from_cf.consul.encrypt_keys ))
+            ca_cert: (( consul_server.ca ))
+            agent_cert: (( consul_agent_ca.certificate ))
+            agent_key: (( consul_agent_ca.private_key ))
+            server_cert: (( consul_server.certificate ))
+            server_key: (( consul_server.private_key ))
+            encrypt_keys: (( consul_encrypt_key ))
       - name: postgres
         properties:
           databases: (( default_db ))
         release: postgres
 
- # APIServer Instance Group
-  
+  # APIServer Instance Group
   - name: apiserver
     azs:
       - z1
@@ -91,14 +86,13 @@ instance_groups:
               domain: cf.internal
               services:
                 apiserver: {}
-              servers: 
-                lan: (( cf_consul_lan_servers ))
-            ca_cert: (( config_from_cf.consul.ca_cert ))
-            agent_cert: (( config_from_cf.consul.agent_cert ))
-            agent_key: (( config_from_cf.consul.agent_key ))
-            server_cert: (( config_from_cf.consul.server_cert ))
-            server_key: (( config_from_cf.consul.server_key ))
-            encrypt_keys: (( config_from_cf.consul.encrypt_keys ))
+              servers: *consul_lan_servers
+            ca_cert: (( consul_server.ca ))
+            agent_cert: (( consul_agent_ca.certificate ))
+            agent_key: (( consul_agent_ca.private_key ))
+            server_cert: (( consul_server.certificate ))
+            server_key: (( consul_server.private_key ))
+            encrypt_keys: (( consul_encrypt_key ))
       - name: apiserver
         release: app-autoscaler
         properties:
@@ -108,6 +102,21 @@ instance_groups:
               max_connections: 10
               min_connections: 0
             port: 6100
+            ca_cert: (( app_autoscaler_ca_cert ))
+            server_cert: (( apiserver_server_cert ))
+            server_key:  (( apiserver_server_key))
+            scheduler:
+              ca_cert: (( app_autoscaler_ca_cert ))
+              client_cert: (( scheduler_client_cert ))
+              client_key: (( scheduler_client_key ))
+            scaling_engine:
+              ca_cert: (( app_autoscaler_ca_cert ))
+              client_cert: (( scalingengine_client_cert ))
+              client_key: (( scalingengine_client_key ))
+            metrics_collector:
+              ca_cert: (( app_autoscaler_ca_cert ))
+              client_cert: (( metricscollector_client_cert ))
+              client_key: (( metricscollector_client_key ))
           policy_db: &database
             databases:
             - name: autoscaler
@@ -116,12 +125,12 @@ instance_groups:
             port: 5432
             roles:
             - name: postgres
-              password: postgres
+              password: "((database_password))"
               tag: default
+          
         
 
-# Scheduler Instance Group
-
+  # Scheduler Instance Group
   - name: scheduler
     azs:
       - z1
@@ -138,14 +147,13 @@ instance_groups:
             agent:
               mode: client
               domain: cf.internal
-              servers:
-                lan: (( config_from_cf.consul.lan_servers ))
-            ca_cert: (( config_from_cf.consul.ca_cert ))
-            agent_cert: (( config_from_cf.consul.agent_cert ))
-            agent_key: (( config_from_cf.consul.agent_key ))
-            server_cert: (( config_from_cf.consul.server_cert ))
-            server_key: (( config_from_cf.consul.server_key ))
-            encrypt_keys: (( config_from_cf.consul.encrypt_keys ))
+              servers: *consul_lan_servers
+            ca_cert: (( consul_server.ca ))
+            agent_cert: (( consul_agent_ca.certificate ))
+            agent_key: (( consul_agent_ca.private_key ))
+            server_cert: (( consul_server.certificate ))
+            server_key: (( consul_server.private_key ))
+            encrypt_keys: (( consul_encrypt_key ))
       - name: scheduler
         properties:
           scheduler:
@@ -164,8 +172,7 @@ instance_groups:
           policy_db: *database
         release: app-autoscaler
 
-# Service-Broker Instance Group
-
+  # Service-Broker Instance Group
   - name: servicebroker
     azs:
       - z1
@@ -184,14 +191,13 @@ instance_groups:
               domain: cf.internal
               services:
                 servicebroker: {}
-              servers: 
-                lan: (( config_from_cf.consul.lan_servers ))
-            ca_cert: (( config_from_cf.consul.ca_cert ))
-            agent_cert: (( config_from_cf.consul.agent_cert ))
-            agent_key: (( config_from_cf.consul.agent_key ))
-            server_cert: (( config_from_cf.consul.server_cert ))
-            server_key: (( config_from_cf.consul.server_key ))
-            encrypt_keys: (( config_from_cf.consul.encrypt_keys ))
+              servers: *consul_lan_servers
+            ca_cert: (( consul_server.ca ))
+            agent_cert: (( consul_agent_ca.certificate ))
+            agent_key: (( consul_agent_ca.private_key ))
+            server_cert: (( consul_server.certificate ))
+            server_key: (( consul_server.private_key ))
+            encrypt_keys: (( consul_encrypt_key ))
       - name: servicebroker
         release: app-autoscaler
         properties:
@@ -221,8 +227,7 @@ instance_groups:
           binding_db: *database
         
 
-# Pruner Instance Group
-
+  # Pruner Instance Group
   - name: pruner
     azs:
       - z1
@@ -239,14 +244,13 @@ instance_groups:
             agent:
               mode: client
               domain: cf.internal
-              servers: 
-                lan: (( config_from_cf.consul.lan_servers ))
-            ca_cert: (( config_from_cf.consul.ca_cert ))
-            agent_cert: (( config_from_cf.consul.agent_cert ))
-            agent_key: (( config_from_cf.consul.agent_key ))
-            server_cert: (( config_from_cf.consul.server_cert ))
-            server_key: (( config_from_cf.consul.server_key ))
-            encrypt_keys: (( config_from_cf.consul.encrypt_keys ))
+              servers: *consul_lan_servers
+            ca_cert: (( consul_server.ca ))
+            agent_cert: (( consul_agent_ca.certificate ))
+            agent_key: (( consul_agent_ca.private_key ))
+            server_cert: (( consul_server.certificate ))
+            server_key: (( consul_server.private_key ))
+            encrypt_keys: (( consul_encrypt_key ))
       - name: pruner
         properties:
           appmetrics_db: *database
@@ -257,8 +261,7 @@ instance_groups:
             level: debug 
         release: app-autoscaler
 
-# Metric-collector Instance Group
-
+  # Metric-collector Instance Group
   - name: metricscollector
     azs:
       - z1
@@ -275,14 +278,13 @@ instance_groups:
             agent:
               mode: client
               domain: cf.internal
-              servers: 
-                lan: (( config_from_cf.consul.lan_servers ))
-            ca_cert: (( config_from_cf.consul.ca_cert ))
-            agent_cert: (( config_from_cf.consul.agent_cert ))
-            agent_key: (( config_from_cf.consul.agent_key ))
-            server_cert: (( config_from_cf.consul.server_cert ))
-            server_key: (( config_from_cf.consul.server_key ))
-            encrypt_keys: (( config_from_cf.consul.encrypt_keys ))
+              servers: *consul_lan_servers
+            ca_cert: (( consul_server.ca ))
+            agent_cert: (( consul_agent_ca.certificate ))
+            agent_key: (( consul_agent_ca.private_key ))
+            server_cert: (( consul_server.certificate ))
+            server_key: (( consul_server.private_key ))
+            encrypt_keys: (( consul_encrypt_key ))
       - name: metricscollector
         properties:
           instancemetrics_db: *database
@@ -304,8 +306,7 @@ instance_groups:
             server_key: (( metricscollector_server_key ))
         release: app-autoscaler
 
-# Event-Generator Instance Group
-
+  # Event-Generator Instance Group
   - name: eventgenerator
     azs:
       - z1
@@ -322,14 +323,13 @@ instance_groups:
             agent:
               mode: client
               domain: cf.internal
-              servers:
-                lan: (( config_from_cf.consul.lan_servers ))
-            ca_cert: (( config_from_cf.consul.ca_cert ))
-            agent_cert: (( config_from_cf.consul.agent_cert ))
-            agent_key: (( config_from_cf.consul.agent_key ))
-            server_cert: (( config_from_cf.consul.server_cert ))
-            server_key: (( config_from_cf.consul.server_key ))
-            encrypt_keys: (( config_from_cf.consul.encrypt_keys ))
+              servers: *consul_lan_servers
+            ca_cert: (( consul_server.ca ))
+            agent_cert: (( consul_agent_ca.certificate ))
+            agent_key: (( consul_agent_ca.private_key ))
+            server_cert: (( consul_server.certificate ))
+            server_key: (( consul_server.private_key ))
+            encrypt_keys: (( consul_encrypt_key ))
       - name: eventgenerator
         properties:
           appmetrics_db: *database
@@ -347,8 +347,7 @@ instance_groups:
               client_key: (( metricscollector_client_key ))
         release: app-autoscaler
 
-# Scaling-Engine Instance Group
-
+  # Scaling-Engine Instance Group
   - name: scalingengine
     azs:
       - z1
@@ -365,14 +364,13 @@ instance_groups:
             agent:
               mode: client
               domain: cf.internal
-              servers:
-                lan: (( config_from_cf.consul.lan_servers ))
-            ca_cert: (( config_from_cf.consul.ca_cert ))
-            agent_cert: (( config_from_cf.consul.agent_cert ))
-            agent_key: (( config_from_cf.consul.agent_key ))
-            server_cert: (( config_from_cf.consul.server_cert ))
-            server_key: (( config_from_cf.consul.server_key ))
-            encrypt_keys: (( config_from_cf.consul.encrypt_keys ))
+              servers: *consul_lan_servers
+            ca_cert: (( consul_server.ca ))
+            agent_cert: (( consul_agent_ca.certificate ))
+            agent_key: (( consul_agent_ca.private_key ))
+            server_cert: (( consul_server.certificate ))
+            server_key: (( consul_server.private_key ))
+            encrypt_keys: (( consul_encrypt_key ))
       - name: scalingengine
         properties:
           scalingengine_db: *database
@@ -391,22 +389,59 @@ instance_groups:
               cluster: http://127.0.0.1:8500
         release: app-autoscaler
 
-cf_properties: (( merge ))
-api_server_properties: (( merge ))
-scheduler_properties: (( merge ))
-service_broker_properties: (( merge ))
-config_from_cf: (( merge ))
-pruner_properties: ((merge))
-metricscollector_properties: (( merge ))
-eventgenerator_properties: (( merge ))
-scalingengine_properties: (( merge ))
-default_db: (( merge ))
-instance_count_overrides: (( merge || nil ))
-database: (( merge || default_db ))
-policydb: (( merge || database ))
-schedulerdb: (( merge || database ))
-scalingenginedb: (( merge || database ))
-appmetricsdb: (( merge || database ))
-instancemetricsdb: (( merge || database ))
-bindingdb: (( merge || database ))
-
+variables:
+- name: database_password
+  type: password
+- name: autoscaler_ca
+  type: certificate
+  options:
+    is_ca: true
+    common_name: autoscalerCA
+- name: scaling_engine_server
+  type: certificate
+  options:
+    ca: autoscaler_ca
+    common_name: scalingengine
+    extended_key_usage:
+    - client_auth
+    - server_auth
+- name: metricscollector_server
+  type: certificate
+  options:
+    ca: autoscaler_ca
+    common_name: metricscollector
+    extended_key_usage:
+    - client_auth
+    - server_auth
+- name: apiserver_server
+  type: certificate
+  options:
+    ca: autoscaler_ca
+    common_name: apiserver
+    extended_key_usage:
+    - client_auth
+    - server_auth
+- name: servicebroker_server
+  type: certificate
+  options:
+    ca: autoscaler_ca
+    common_name: servicebroker
+    extended_key_usage:
+    - client_auth
+    - server_auth
+- name: eventgenerator_server
+  type: certificate
+  options:
+    ca: autoscaler_ca
+    common_name: eventgenerator
+    extended_key_usage:
+    - client_auth
+    - server_auth
+- name: scheduler_server
+  type: certificate
+  options:
+    ca: autoscaler_ca
+    common_name: scheduler
+    extended_key_usage:
+    - client_auth
+    - server_auth
