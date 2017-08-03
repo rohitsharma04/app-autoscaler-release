@@ -43,25 +43,19 @@ instance_groups:
     jobs:
       - name: consul_agent
         release: consul
+        consumes:
+          consul_common: {from: consul_common_link, deployment: cf}
+          consul_server: nil
+          consul_client: {from: consul_client_link, deployment: cf}
         properties:
           consul:
             agent:
-              mode: client
-              domain: cf.internal
               services:
                 postgres:
                   check:
                     tcp: 127.0.0.1:5432
-                    interval: 30s
-                    timeout: 10s
-              servers: &consul_lan_servers
-                lan: ((cf_consul_lan_servers))
-            ca_cert: ((consul_server.ca))
-            agent_cert: ((consul_agent_ca.certificate))
-            agent_key: ((consul_agent_ca.private_key))
-            server_cert: ((consul_server.certificate))
-            server_key: ((consul_server.private_key))
-            encrypt_keys: ((consul_encrypt_key))
+                    interval: 10s
+                    timeout: 5s
       - name: postgres
         properties:
           databases: &database
@@ -88,20 +82,15 @@ instance_groups:
     jobs:
       - name: consul_agent
         release: consul
+        consumes:
+          consul_common: {from: consul_common_link, deployment: cf}
+          consul_server: nil
+          consul_client: {from: consul_client_link, deployment: cf}
         properties:
           consul:
             agent:
-              mode: client
-              domain: cf.internal
               services:
                 apiserver: {}
-              servers: *consul_lan_servers
-            ca_cert: ((consul_server.ca))
-            agent_cert: ((consul_agent_ca.certificate))
-            agent_key: ((consul_agent_ca.private_key))
-            server_cert: ((consul_server.certificate))
-            server_key: ((consul_server.private_key))
-            encrypt_keys: ((consul_encrypt_key))
       - name: apiserver
         release: app-autoscaler
         properties:
@@ -141,18 +130,10 @@ instance_groups:
     jobs:
       - name: consul_agent
         release: consul
-        properties:
-          consul:
-            agent:
-              mode: client
-              domain: cf.internal
-              servers: *consul_lan_servers
-            ca_cert: ((consul_server.ca))
-            agent_cert: ((consul_agent_ca.certificate))
-            agent_key: ((consul_agent_ca.private_key))
-            server_cert: ((consul_server.certificate))
-            server_key: ((consul_server.private_key))
-            encrypt_keys: ((consul_encrypt_key))
+        consumes:
+          consul_common: {from: consul_common_link, deployment: cf}
+          consul_server: nil
+          consul_client: {from: consul_client_link, deployment: cf}
       - name: scheduler
         properties:
           scheduler:
@@ -162,7 +143,7 @@ instance_groups:
             notification_reschedule_maxcount: 3
             ca_cert: ((autoscaler_ca.ca))
             server_cert: ((scheduler_server.certificate))
-            server_key: ((scheduler_server.private_key ))
+            server_key: ((scheduler_server.private_key))
             scaling_engine:
               ca_cert: ((autoscaler_ca.ca))
               client_cert: ((scalingengine_server.certificate))
@@ -183,20 +164,16 @@ instance_groups:
     jobs:
       - name: consul_agent
         release: consul
+        consumes:
+          consul_common: {from: consul_common_link, deployment: cf}
+          consul_server: nil
+          consul_client: {from: consul_client_link, deployment: cf}
         properties:
           consul:
             agent:
-              mode: client
-              domain: cf.internal
               services:
                 servicebroker: {}
-              servers: *consul_lan_servers
-            ca_cert: ((consul_server.ca))
-            agent_cert: ((consul_agent_ca.certificate))
-            agent_key: ((consul_agent_ca.private_key))
-            server_cert: ((consul_server.certificate))
-            server_key: ((consul_server.private_key))
-            encrypt_keys: ((consul_encrypt_key))
+
       - name: servicebroker
         release: app-autoscaler
         properties:
@@ -238,18 +215,10 @@ instance_groups:
     jobs:
       - name: consul_agent
         release: consul
-        properties:
-          consul:
-            agent:
-              mode: client
-              domain: cf.internal
-              servers: *consul_lan_servers
-            ca_cert: ((consul_server.ca))
-            agent_cert: ((consul_agent_ca.certificate))
-            agent_key: ((consul_agent_ca.private_key))
-            server_cert: ((consul_server.certificate))
-            server_key: ((consul_server.private_key))
-            encrypt_keys: ((consul_encrypt_key))
+        consumes:
+          consul_common: {from: consul_common_link, deployment: cf}
+          consul_server: nil
+          consul_client: {from: consul_client_link, deployment: cf}
       - name: pruner
         properties:
           appmetrics_db: *database
@@ -272,18 +241,10 @@ instance_groups:
     jobs:
       - name: consul_agent
         release: consul
-        properties:
-          consul:
-            agent:
-              mode: client
-              domain: cf.internal
-              servers: *consul_lan_servers
-            ca_cert: ((consul_server.ca))
-            agent_cert: ((consul_agent_ca.certificate))
-            agent_key: ((consul_agent_ca.private_key))
-            server_cert: ((consul_server.certificate))
-            server_key: ((consul_server.private_key))
-            encrypt_keys: ((consul_encrypt_key))
+        consumes:
+          consul_common: {from: consul_common_link, deployment: cf}
+          consul_server: nil
+          consul_client: {from: consul_client_link, deployment: cf}
       - name: metricscollector
         properties:
           instancemetrics_db: *database
@@ -317,18 +278,10 @@ instance_groups:
     jobs:
       - name: consul_agent
         release: consul
-        properties:
-          consul:
-            agent:
-              mode: client
-              domain: cf.internal
-              servers: *consul_lan_servers
-            ca_cert: ((consul_server.ca))
-            agent_cert: ((consul_agent_ca.certificate))
-            agent_key: ((consul_agent_ca.private_key))
-            server_cert: ((consul_server.certificate))
-            server_key: ((consul_server.private_key))
-            encrypt_keys: ((consul_encrypt_key))
+        consumes:
+          consul_common: {from: consul_common_link, deployment: cf}
+          consul_server: nil
+          consul_client: {from: consul_client_link, deployment: cf}
       - name: eventgenerator
         properties:
           appmetrics_db: *database
@@ -358,18 +311,10 @@ instance_groups:
     jobs:
       - name: consul_agent
         release: consul
-        properties:
-          consul:
-            agent:
-              mode: client
-              domain: cf.internal
-              servers: *consul_lan_servers
-            ca_cert: ((consul_server.ca))
-            agent_cert: ((consul_agent_ca.certificate))
-            agent_key: ((consul_agent_ca.private_key))
-            server_cert: ((consul_server.certificate))
-            server_key: ((consul_server.private_key))
-            encrypt_keys: ((consul_encrypt_key))
+        consumes:
+          consul_common: {from: consul_common_link, deployment: cf}
+          consul_server: nil
+          consul_client: {from: consul_client_link, deployment: cf}
       - name: scalingengine
         properties:
           scalingengine_db: *database
@@ -400,7 +345,7 @@ variables:
   type: certificate
   options:
     ca: autoscaler_ca
-    common_name: scalingengine
+    common_name: scalingengine.service.cf.internal
     extended_key_usage:
     - client_auth
     - server_auth
@@ -408,7 +353,7 @@ variables:
   type: certificate
   options:
     ca: autoscaler_ca
-    common_name: metricscollector
+    common_name: metricscollector.service.cf.internal
     extended_key_usage:
     - client_auth
     - server_auth
@@ -416,7 +361,7 @@ variables:
   type: certificate
   options:
     ca: autoscaler_ca
-    common_name: apiserver
+    common_name: apiserver.service.cf.internal
     extended_key_usage:
     - client_auth
     - server_auth
@@ -424,7 +369,7 @@ variables:
   type: certificate
   options:
     ca: autoscaler_ca
-    common_name: servicebroker
+    common_name: servicebroker.service.cf.internal
     extended_key_usage:
     - client_auth
     - server_auth
@@ -432,7 +377,7 @@ variables:
   type: certificate
   options:
     ca: autoscaler_ca
-    common_name: scheduler
+    common_name: scheduler.service.cf.internal
     extended_key_usage:
     - client_auth
     - server_auth
