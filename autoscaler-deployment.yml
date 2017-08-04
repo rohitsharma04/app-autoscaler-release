@@ -56,6 +56,7 @@ instance_groups:
                     interval: 30s
                     timeout: 10s
       - name: postgres
+        release: postgres
         properties:
           databases: &database
             databases:
@@ -67,7 +68,6 @@ instance_groups:
             - name: postgres
               password: "((database_password))"
               tag: default
-        release: postgres
 
   # APIServer Instance Group
   - name: apiserver
@@ -115,7 +115,6 @@ instance_groups:
               client_cert: ((metricscollector_server.certificate))
               client_key: ((metricscollector_server.private_key))
           policy_db: *database
-          
         
   # Scheduler Instance Group
   - name: scheduler
@@ -134,6 +133,7 @@ instance_groups:
           consul_server: nil
           consul_client: {from: consul_client_link, deployment: cf}
       - name: scheduler
+        release: app-autoscaler
         properties:
           scheduler:
             port: 6102
@@ -149,8 +149,7 @@ instance_groups:
               client_key: ((scalingengine_server.private_key))
           scheduler_db: *database
           policy_db: *database
-        release: app-autoscaler
-
+        
   # Service-Broker Instance Group
   - name: servicebroker
     azs:
@@ -200,7 +199,6 @@ instance_groups:
               client_cert: ((apiserver_server.certificate))
               client_key: ((apiserver_server.private_key))
           binding_db: *database
-        
 
   # Pruner Instance Group
   - name: pruner
@@ -219,6 +217,7 @@ instance_groups:
           consul_server: nil
           consul_client: {from: consul_client_link, deployment: cf}
       - name: pruner
+        release: app-autoscaler
         properties:
           appmetrics_db: *database
           instancemetrics_db: *database
@@ -226,7 +225,6 @@ instance_groups:
           pruner:
             logging:
             level: debug 
-        release: app-autoscaler
 
   # Metric-collector Instance Group
   - name: metricscollector
@@ -245,16 +243,17 @@ instance_groups:
           consul_server: nil
           consul_client: {from: consul_client_link, deployment: cf}
       - name: metricscollector
+        release: app-autoscaler
         properties:
           instancemetrics_db: *database
           policy_db: *database
           cf: &cf_credentials
-            api: https://api.bosh-lite.com
+            api: "https://api.((system_domain))"
             grant_type: password
             username: admin
-            password: admin
+            password: "((cf_admin_password))"
             client_id: admin
-            secret: admin-secret
+            secret: "((cf_admin_client_secret))"
           metricscollector:
             logging:
               level: debug
@@ -263,7 +262,6 @@ instance_groups:
             ca_cert: ((autoscaler_ca.ca))
             server_cert: ((metricscollector_server.certificate))
             server_key: ((metricscollector_server.private_key))
-        release: app-autoscaler
 
   # Event-Generator Instance Group
   - name: eventgenerator
@@ -282,6 +280,7 @@ instance_groups:
           consul_server: nil
           consul_client: {from: consul_client_link, deployment: cf}
       - name: eventgenerator
+        release: app-autoscaler
         properties:
           appmetrics_db: *database
           policy_db: *database
@@ -296,7 +295,6 @@ instance_groups:
               ca_cert: ((autoscaler_ca.ca))
               client_cert: ((metricscollector_server.certificate))
               client_key: ((metricscollector_server.private_key))
-        release: app-autoscaler
 
   # Scaling-Engine Instance Group
   - name: scalingengine
@@ -315,6 +313,7 @@ instance_groups:
           consul_server: nil
           consul_client: {from: consul_client_link, deployment: cf}
       - name: scalingengine
+        release: app-autoscaler
         properties:
           scalingengine_db: *database
           scheduler_db: *database
@@ -330,7 +329,6 @@ instance_groups:
             server_key: ((scalingengine_server.private_key))
             consul:
               cluster: http://127.0.0.1:8500
-        release: app-autoscaler
 
 variables:
 - name: database_password
@@ -348,6 +346,13 @@ variables:
     extended_key_usage:
     - client_auth
     - server_auth
+- name: scalingengine_client
+  type: certificate
+  options:
+    ca: autoscaler_ca
+    common_name: scalingengine client
+    extended_key_usage:
+    - client_auth
 - name: metricscollector_server
   type: certificate
   options:
@@ -356,6 +361,13 @@ variables:
     extended_key_usage:
     - client_auth
     - server_auth
+- name: metricscollector_client
+  type: certificate
+  options:
+    ca: autoscaler_ca
+    common_name: metricscollector client
+    extended_key_usage:
+    - client_auth
 - name: apiserver_server
   type: certificate
   options:
@@ -364,6 +376,13 @@ variables:
     extended_key_usage:
     - client_auth
     - server_auth
+- name: apiserver_client
+  type: certificate
+  options:
+    ca: autoscaler_ca
+    common_name: apiserver client
+    extended_key_usage:
+    - client_auth
 - name: servicebroker_server
   type: certificate
   options:
@@ -380,3 +399,10 @@ variables:
     extended_key_usage:
     - client_auth
     - server_auth
+- name: scheduler_client
+  type: certificate
+  options:
+    ca: autoscaler_ca
+    common_name: scheduler client
+    extended_key_usage:
+    - client_auth
